@@ -33,7 +33,7 @@ class Writer:
 
         # 處理資料
         body_contents = []
-
+        collapse_id = 1
         for data in datas:
             number = data.get("number")
             url = data.get("url")
@@ -43,6 +43,8 @@ class Writer:
             news_cls = data.get("news_cls")
             if news_cls:
                 news_cls = f'<h3>{data.get("news_cls")}</h3>'
+
+            date = data.get("date")
 
             title = data.get("title")
 
@@ -65,11 +67,17 @@ class Writer:
                 contents.append(content_html)
 
             body_content = f"""
-            <div  style='padding: 10px 40px; margin: 25px 20%; border: 5px solid black; border-radius: 8px;'>
+            <div data-bs-toggle="collapse" data-bs-target="#collapse_{collapse_id}" style="cursor: pointer;">
+                <h3>{title}</h3>
+            </div>
+            <div class="collapse" id="collapse_{collapse_id}" style='padding: 10px 40px; margin: 25px 20%; border: 5px solid black; border-radius: 8px;'>
                 <div>
                     <h4>{number} 關鍵字：{keyword}</h4>
-                    <a href="{url}">來源連結</a>
+                    <a href="{url}">文章連結</a>
                     {news_cls}
+                </div>
+                <div>
+                    <time>{date}</time>
                 </div>
                 <div>
                     <h1>{title}</h1>
@@ -87,6 +95,7 @@ class Writer:
             """
 
             body_contents.append(body_content)
+            collapse_id += 1
 
         # 一次寫入
         with open(self.html_file, "w", encoding="utf-8-sig") as f:
@@ -94,13 +103,15 @@ class Writer:
                 f"""
                     <html>
                     <head>
+                    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
                     {style}
                     </head>
                     <body>
-                        <div>
-                            {'\n'.join(body_contents)}
-                        </div>
+                    <div class="d-flex justify-content-center align-items-center  min-vh-100 flex-column">
+                        {'\n'.join(body_contents)}
+                    </div>
                     </body>
+                    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
                     </html>
                     """
             )
@@ -110,7 +121,7 @@ class Writer:
             for data in datas:
                 number = data.get("number")
                 url = data.get("url")
-                f.write(f"\n第 {number} 則  來源連結：{url}\n")
+                f.write(f"\n第 {number} 則  文章連結：{url}\n")
 
                 news_cls = data.get("news_cls")
                 title = data.get("title")

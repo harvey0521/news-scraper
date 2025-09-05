@@ -34,10 +34,10 @@ def get_url():
         href = a.get_attribute("href")
         # print(f"{h3.text}\n{href}")
         # print(href)
-        if href in urls:  # 去除重複的
+        if href in news_urls:  # 去除重複的
             continue
 
-        urls.append(href)
+        news_urls.append(href)
 
 
 # 抓影片網址 使用 playwright 模組找網路請求
@@ -70,25 +70,26 @@ def get_video_url(url):
         return video_url
 
 
+service = Service("./msedgedriver.exe")
+options = Options()
+options.add_argument("--headless")  # 無界面模式
+options.add_argument(
+    "--disable-gpu"
+)  # 禁用GPU加速，目前系統需要關閉才能無頭執行 (其他可能不需要)
+
+
+driver = webdriver.Edge(service=service, options=options)
+
 news_data = []
 
 for keyword in keywords:
     search_url = f"https://tw.news.yahoo.com/search?p={keyword}"
 
-    service = Service("./msedgedriver.exe")
-    options = Options()
-    options.add_argument("--headless")  # 無界面模式
-    options.add_argument(
-        "--disable-gpu"
-    )  # 禁用GPU加速，目前系統需要關閉才能無頭執行 (其他可能不需要)
-
-
-    driver = webdriver.Edge(service=service, options=options)
     driver.get(search_url)
 
     time.sleep(2)
 
-    urls = []
+    news_urls = []
 
     # 先抓取當下有的
     get_url()
@@ -109,7 +110,7 @@ for keyword in keywords:
     # print(f"初始 li 數量為 {last_height}")
     # endregion
 
-    while len(urls) < count:  # 目前抓到筆數
+    while len(news_urls) < count:  # 目前抓到筆數
 
         # 看 ul 高度方法
         li = driver.find_elements(By.CLASS_NAME, "StreamMegaItem")
@@ -137,12 +138,12 @@ for keyword in keywords:
         if new_height == last_height:
             print("沒有新內容了，停止滾動")
             break  # 沒有新內容了，停止滾動
-        print(f"目前網址數量：{len(urls)}")
+        print(f"目前網址數量：{len(news_urls)}")
 
         last_height = new_height  # 更新高度，繼續下一輪
 
 
-    print(f"網址數量共：{len(urls)}")
+    print(f"網址數量共：{len(news_urls)}")
 
     # driver.quit()  # 關閉自動操作  #退出後後面就不能使用 driver
     # driver.close()  #暫時關閉
@@ -150,8 +151,8 @@ for keyword in keywords:
 
     # 進入連結抓內容
     num = 1
-    for url in urls:
-        web = requests.get(url, verify=False)
+    for news_url in news_urls:
+        web = requests.get(news_url, verify=False)
         soup = BeautifulSoup(web.text, "html.parser")
 
         print(f"第{num}筆")
@@ -162,11 +163,11 @@ for keyword in keywords:
             title = header.find("h1")
             
             #抓影片
-            videoUrl = get_video_url(url)
+            videoUrl = get_video_url(news_url)
             print(title)
         except AttributeError:  # 如果沒有找到 title 代表他還有一頁需要再進入 (新聞專輯)
             print("還有一頁需再進入")
-            driver.get(url)
+            driver.get(news_url)
             # time.sleep(2)
             a_div = driver.find_element(By.ID, "TopicHero")
             print("找到 a_div")
@@ -185,7 +186,12 @@ for keyword in keywords:
 
         atoms = soup.find_all("div", class_="atoms")
 
+        #日期
+        date = soup.find('time').get_text().strip()
+        print(f'日期：{date}')
+
         print(f"影片連結：{videoUrl}")
+
 
         # 抓圖片
         imgs_src = []
@@ -229,7 +235,8 @@ for keyword in keywords:
                 "number": num,
                 'keyword':keyword,
                 "news_cls": "",
-                "url": url,
+                "date": date,
+                "url": news_url,
                 "title": title_text,
                 "video": videoUrl,
                 "imgs": imgs_src,
