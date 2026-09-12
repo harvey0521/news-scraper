@@ -5,10 +5,9 @@
 ![Selenium](https://img.shields.io/badge/Selenium-Automated-green)
 ![Playwright](https://img.shields.io/badge/Playwright-Network_Intercept-orange)
 
-> **⚠️ 狀態聲明 (Status Notice):** 
-> 本專案為過去任職公司期間所開發的業務工具。由於各大新聞網站的網頁結構 (DOM)、防爬蟲機制及 API 介面已隨著時間發生改變，本專案的程式碼**目前已無法直接運行**，且處於停止維護的歸檔狀態。
+> **⚠️ 狀態 (Status Notice):**
 > 
-> 將此專案保留並展示，主要是為了作為個人作品集的一部分，呈現過去在**網頁資料擷取、動態網頁渲染處理、自動化腳本開發以及資料清洗**方面的實務經驗與邏輯思維。
+> 本專案為過去任職公司期間所開發的業務工具。由於各大新聞網站的網頁結構 (DOM)、防爬蟲機制及 API 介面已隨著時間發生改變，本專案的程式碼**目前已無法直接運行**。
 
 ---
 
