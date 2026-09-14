@@ -1,4 +1,5 @@
 # 今日新聞
+# 換頁不須滾動、直接開連結沒有內容，需模擬點擊搜索跟換頁、有防爬蟲，需設假標頭
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.edge.service import Service
@@ -12,10 +13,10 @@ import time
 
 service = Service("./msedgedriver.exe")
 options = Options()
-# options.add_argument("--headless")  # 無界面模式
-# options.add_argument(
-#     "--disable-gpu"
-# )  # 禁用GPU加速，目前系統需要關閉才能無頭執行 (其他可能不需要)
+options.add_argument("--headless")  # 無界面模式
+options.add_argument(
+    "--disable-gpu"
+)  # 禁用GPU加速，目前系統需要關閉才能無頭執行 (其他可能不需要)
 
 driver = webdriver.Edge(service=service, options=options)
 
@@ -37,7 +38,7 @@ config = configparser.ConfigParser()
 # 讀取 INI 設定檔  #config 出來的都會是字串
 config.read(config_path, encoding="utf-8-sig")
 # 關鍵字
-keywords = config["settings"]["keywords"].split(" ")
+keywords = config["keywords1"]["keywords1"].split(",")
 print(keywords)
 # 要抓的筆數
 count = config["settings"].getint("count")  # 轉數字
@@ -46,18 +47,19 @@ news_data = []
 
 for keyword in keywords:
 
+    search_url = f"https://www.nownews.com/search?q={keyword}"
+    print(search_url)
+
+    driver.get(search_url)
+
+    driver.find_element(By.ID, "btnQry").click()
+
     news_urls = []
     num = 1
     page = 1
     print(count)
     while len(news_urls) < count:
-        search_url = f"https://www.nownews.com/search?q={keyword}&page={page}"
-        print(search_url)
-
-        driver.get(search_url)
-
-        driver.find_element(By.ID, "btnQry").click()
-
+        print(f'目前第{page}頁')
         time.sleep(0.5)
 
         list_div = driver.find_element(By.CLASS_NAME, "item-list")
@@ -65,14 +67,31 @@ for keyword in keywords:
 
         for url in urls:
             href = url.get_attribute("href")
+            # 數量到了就停止
             if len(news_urls) >= count:
                 break
+            # 如果已經抓過這個連結，就跳過
             if href in news_urls:
                 continue
+
             print(f"{num} {href}")
             num += 1
             news_urls.append(href)
 
+        # 找到目前 active 的元素
+        active_elem = driver.find_element(By.CSS_SELECTOR, ".numb.active")
+        try:
+            # 找到它的下一個兄弟元素（找到下一個同層級的 .numb 元素）
+            next_elem = active_elem.find_element(
+                By.XPATH, "following-sibling::div[contains(@class, 'numb')]"    #::div[1]
+            )
+            #點擊他
+            next_elem.click()
+            print('下一頁')
+        except:
+            print("沒有下一頁了")
+            break
+            
         page += 1
 
     # 進入連結抓內容
@@ -131,7 +150,7 @@ for keyword in keywords:
                 "keyword": keyword,
                 "news_cls": news_cls,
                 "date": date,
-                "url": url,
+                "url": news_url,
                 "title": title_text,
                 "video": "",
                 "imgs": imgs_src,

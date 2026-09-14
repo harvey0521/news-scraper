@@ -1,4 +1,6 @@
 # yahoo
+# 需滾動、有些連結進入不是真正的文章內容，需再進入連結才是文章內容、影片需抓網路請求
+# * 發現網路請求回應不再回應mp4連結，只能抓m3u8連結
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.edge.service import Service
@@ -11,64 +13,20 @@ import os
 from modules.writer import Writer
 import time
 
-#到yahoo目錄
-yahoo_dir = os.path.dirname(__file__) #__file__ 當前檔案    #dirname往上層找
-#到根目錄
+# 到yahoo目錄
+yahoo_dir = os.path.dirname(__file__)  # __file__ 當前檔案    #dirname往上層找
+# 到根目錄
 root = os.path.dirname(yahoo_dir)
-#找config.ini
-config_path = os.path.join(root, 'config.ini')
+# 找config.ini
+config_path = os.path.join(root, "config.ini")
 # 建立 ConfigParser
 config = configparser.ConfigParser()
 # 讀取 INI 設定檔  #config 出來的都會是字串
-config.read(config_path, encoding='utf-8-sig')
+config.read(config_path, encoding="utf-8-sig")
 # 關鍵字
-keywords = config['settings']['keywords'].split(' ')
+keywords = config["keywords1"]["keywords1"].split(",")
 # 要抓的筆數
-count = config["settings"].getint('count')  #轉數字 # 要抓的筆數
-
-# 抓關鍵字首頁的標題連結
-def get_url():
-    h3s = driver.find_elements(By.TAG_NAME, "h3")
-    for h3 in h3s[:count]:  # 取前count筆數
-        a = h3.find_element(By.TAG_NAME, "a")
-        href = a.get_attribute("href")
-        # print(f"{h3.text}\n{href}")
-        # print(href)
-        if href in news_urls:  # 去除重複的
-            continue
-
-        news_urls.append(href)
-
-
-# 抓影片網址 使用 playwright 模組找網路請求
-def get_video_url(url):
-    with sync_playwright() as p:
-        browser = p.chromium.launch(
-            channel="msedge", headless=True
-        )  # 或 "chrome" #headless=False 顯示視窗
-        page = browser.new_page()
-
-        video_url = ""
-
-        def handle_requests(request):
-            nonlocal video_url  # nonlocal 只能用在內部函式修改外部函式的變數 #如果外部沒有函式，就要用 global
-            if "https://edge-auth.api.brightcove.com" in request.url:
-                try:
-                    response = request.response()
-                    data = response.json()
-                    video_url = data["sources"][2]["src"]
-                    print(f"抓出來的影片連結：{video_url}")
-                except:
-                    print("沒有影片")
-
-        page.on(
-            "requestfinished", handle_requests
-        )  # 網路請求「完全完成」時才觸發 #請求已完成，回應內容已下載完
-        page.goto(url)
-        page.wait_for_timeout(1000)  # 等待1秒確保網頁發送請求
-        browser.close()
-        return video_url
-
+count = config["settings"].getint("count")  # 轉數字 # 要抓的筆數
 
 service = Service("./msedgedriver.exe")
 options = Options()
@@ -77,8 +35,96 @@ options.add_argument(
     "--disable-gpu"
 )  # 禁用GPU加速，目前系統需要關閉才能無頭執行 (其他可能不需要)
 
-
 driver = webdriver.Edge(service=service, options=options)
+
+
+# 取得連結網頁html
+def get_soup(url):
+    try:
+        web = requests.get(url, verify=False)
+        return BeautifulSoup(web.text, "html.parser")
+    except Exception as e:
+        print(f"網頁取得失敗，錯誤訊息：{e}")
+
+
+# 抓關鍵字首頁的標題連結
+def get_url():
+    h3s = driver.find_elements(By.TAG_NAME, "h3")
+    for h3 in h3s:
+        # 數量到了就停止
+        if len(news_urls) >= count:
+            break
+
+        a = h3.find_element(By.TAG_NAME, "a")
+        href = a.get_attribute("href")
+        # print(f"{h3.text}\n{href}")
+        # print(href)
+        if href in news_urls:  # 如果已經抓過這個連結，就跳過
+            continue
+
+        news_urls.append(href)
+
+
+# region 抓 response 的 MP4 連結
+# # 抓影片網址 使用 playwright 模組找網路請求
+# def get_video_url(url):
+#     with sync_playwright() as p:
+#         browser = p.chromium.launch(
+#             channel="msedge", headless=True
+#         )  # 或 "chrome" #headless=False 顯示視窗
+#         page = browser.new_page()
+
+#         video_url = ""
+
+#         def handle_requests(request):
+#             nonlocal video_url  # nonlocal 只能用在內部函式修改外部函式的變數 #如果外部沒有函式，就要用 global
+#             if "https://edge-auth.api.brightcove.com" in request.url:
+#                 try:
+#                     response = request.response()
+#                     data = response.json()
+#                     video_url = data["sources"][2]["src"]
+#                     print(f"抓出來的影片連結：{video_url}")
+#                 except:
+#                     print("沒有影片")
+
+#         page.on(
+#             "requestfinished", handle_requests
+#         )  # 網路請求「完全完成」時才觸發 #請求已完成，回應內容已下載完
+#         page.goto(url)
+#         page.wait_for_timeout(1000)  # 等待1秒確保網頁發送請求
+#         browser.close()
+#         return video_url
+# endregion
+
+
+# 抓影片 m3u8 連結 使用 playwright 模組找網路請求
+def get_video_url(url):
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            channel="msedge", headless=True
+        )  # 或 "chrome" #headless=False 顯示視窗
+        page = browser.new_page()  # 開新頁
+
+        video_url = ""
+
+        def handle_requests(request):
+            nonlocal video_url  # nonlocal 只能用在內部函式修改外部函式的變數 #如果外部沒有函式，就要用 global
+            if "https://edge.api.brightcove.com/playback" in request.url and "brightcove.com/v2/tracker" not in request.url:
+                try:
+                    video_url = request.url
+                    print(f"抓出來的影片.n3u8連結：{video_url}")
+                except:
+                    print("沒有影片")
+
+        # page.on(
+        #     "requestfinished", handle_requests
+        # )  # 網路請求「完全完成」時才觸發 #請求已完成，回應內容已下載完
+        page.on("request", handle_requests)  # 只想在「請求送出」那一刻就抓到請求的 URL
+        page.goto(url)  #頁面載入完成（預設是 load 事件）
+        page.wait_for_timeout(500)  # 等待1秒確保網頁發送請求
+        browser.close()
+        return video_url
+
 
 news_data = []
 
@@ -87,13 +133,14 @@ for keyword in keywords:
 
     driver.get(search_url)
 
-    time.sleep(2)
-
     news_urls = []
 
     # 先抓取當下有的
     get_url()
 
+    # scroll_div = WebDriverWait(driver, 10).until(
+    #     EC.presence_of_element_located((By.ID, "stream-container-scroll-template"))
+    # )
     # 找到真正滾動得元素
     scroll_div = driver.find_element(By.ID, "stream-container-scroll-template")
 
@@ -120,13 +167,15 @@ for keyword in keywords:
             "arguments[0].scrollIntoView();", li[-1]
         )  # 把 li 元素最後一項滾動到視窗中可見的位置(滑鼠滾輪滑到最後一個 li 區塊)
 
-        time.sleep(2)
+        time.sleep(0.5)
 
         # 抓取當下有的
         get_url()
 
         # 新整個內容高度 #看 ul 高度方法
-        new_height = driver.execute_script("return arguments[0].scrollHeight", scroll_div)
+        new_height = driver.execute_script(
+            "return arguments[0].scrollHeight", scroll_div
+        )
         print(f"ul 最新整個內容高度{new_height}")
 
         # region 看 li 數量方法
@@ -142,18 +191,15 @@ for keyword in keywords:
 
         last_height = new_height  # 更新高度，繼續下一輪
 
-
     print(f"網址數量共：{len(news_urls)}")
 
     # driver.quit()  # 關閉自動操作  #退出後後面就不能使用 driver
     # driver.close()  #暫時關閉
 
-
     # 進入連結抓內容
     num = 1
     for news_url in news_urls:
-        web = requests.get(news_url, verify=False)
-        soup = BeautifulSoup(web.text, "html.parser")
+        soup = get_soup(news_url)
 
         print(f"第{num}筆")
 
@@ -161,8 +207,8 @@ for keyword in keywords:
         try:
             header = soup.find("header", class_="mb-module-gap")
             title = header.find("h1")
-            
-            #抓影片
+
+            # 抓影片
             videoUrl = get_video_url(news_url)
             print(title)
         except AttributeError:  # 如果沒有找到 title 代表他還有一頁需要再進入 (新聞專輯)
@@ -173,11 +219,11 @@ for keyword in keywords:
             print("找到 a_div")
             new_url = a_div.find_element(By.TAG_NAME, "a").get_attribute("href")
             print(f"新的連結{new_url}")
-            web = requests.get(new_url, verify=False)
-            soup = BeautifulSoup(web.text, "html.parser")
+            # 取得連結網頁html
+            soup = get_soup(new_url)
             header = soup.find("header", class_="mb-module-gap")
             title = header.find("h1")
-            #抓影片
+            # 抓影片
             videoUrl = get_video_url(new_url)
             print(title)
 
@@ -186,12 +232,11 @@ for keyword in keywords:
 
         atoms = soup.find_all("div", class_="atoms")
 
-        #日期
-        date = soup.find('time').get_text().strip()
-        print(f'日期：{date}')
+        # 日期
+        date = soup.find("time").get_text().strip()
+        print(f"日期：{date}")
 
         print(f"影片連結：{videoUrl}")
-
 
         # 抓圖片
         imgs_src = []
@@ -233,7 +278,7 @@ for keyword in keywords:
         news_data.append(
             {
                 "number": num,
-                'keyword':keyword,
+                "keyword": keyword,
                 "news_cls": "",
                 "date": date,
                 "url": news_url,

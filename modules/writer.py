@@ -1,3 +1,4 @@
+# html video 不支援.m3u8連結，需要使用 HLS.JS 模組才能播放
 import os
 import configparser
 
@@ -15,6 +16,7 @@ class Writer:
         self.config.read(config_path, encoding="utf-8-sig")
         self.html_file = self.config["file_name"]["html_file"]
         self.txt_file = self.config["file_name"]["txt_file"]
+        self.html_img_file = self.config["file_name"]["html_img_file"]
 
     def writer_html(self, datas):
 
@@ -28,12 +30,39 @@ class Writer:
                     height: auto;
                     width: auto;
                 }
+                h3:hover{
+                    color: blue;
+                }
             </style>
             """
+
+        # 雙大括號 {{ }} 逃脫 f-string
+        script = f"""
+        <script>
+            const videos = document.querySelectorAll('video[data-src]');
+            for (let i = 0; i<videos.length; i++){{
+                const video = videos[i];
+                const m3u8Url = video.getAttribute('data-src');
+
+                if (Hls.isSupported()) {{
+                const hls = new Hls();
+                hls.loadSource(m3u8Url);
+                hls.attachMedia(video);
+                hls.on(Hls.Events.MANIFEST_PARSED, () => {{
+                video.play();
+                }});
+            }} else if (video.canPlayType('application/vnd.apple.mpegurl')) {{
+                video.src = m3u8Url;
+                video.play();
+            }}
+            }}
+        </script>
+        """
 
         # 處理資料
         body_contents = []
         collapse_id = 1
+        video_id = 1
         for data in datas:
             number = data.get("number")
             url = data.get("url")
@@ -49,11 +78,16 @@ class Writer:
             title = data.get("title")
 
             video = data.get("video")
+            print(video)
+            # if video_url:
+            #     video_url = f"""
+            #     <video controls autoplay muted playsinline>
+            #         <source src="{data.get("video")}" type="video/mp4">
+            #     </video>
+            #     """
             if video:
                 video = f"""
-                <video controls autoplay muted playsinline>
-                    <source src="{data.get("video")}" type="video/mp4">
-                </video>
+                <video id="video_{video_id}" data-src="{data.get("video")}" controls autoplay muted playsinline></video>
                 """
 
             imgs = []
@@ -67,13 +101,14 @@ class Writer:
                 contents.append(content_html)
 
             body_content = f"""
-            <div data-bs-toggle="collapse" data-bs-target="#collapse_{collapse_id}" style="cursor: pointer;">
+            <div data-bs-toggle="collapse" data-bs-target="#collapse_{collapse_id}" style="cursor: pointer; display: flex; align-items: center; gap: 5px; margin: 5px;">
                 <h3>{title}</h3>
+                <p><span style="color: red;" >{keyword}</span></p>
             </div>
             <div class="collapse" id="collapse_{collapse_id}" style='padding: 10px 40px; margin: 25px 20%; border: 5px solid black; border-radius: 8px;'>
                 <div>
-                    <h4>{number} 關鍵字：{keyword}</h4>
-                    <a href="{url}">文章連結</a>
+                    <h4>{number}</h4>
+                    <a href="{url}">{title}</a>
                     {news_cls}
                 </div>
                 <div>
@@ -96,6 +131,7 @@ class Writer:
 
             body_contents.append(body_content)
             collapse_id += 1
+            video_id += 1
 
         # 一次寫入
         with open(self.html_file, "w", encoding="utf-8-sig") as f:
@@ -107,11 +143,13 @@ class Writer:
                     {style}
                     </head>
                     <body>
-                    <div class="d-flex justify-content-center align-items-center  min-vh-100 flex-column">
+                    <div class="d-flex justify-content-center align-items-center  min-vh-100 flex-column" style="padding: 20;">
                         {'\n'.join(body_contents)}
                     </div>
-                    </body>
                     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
+                    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+                    {script}
+                    </body>
                     </html>
                     """
             )
@@ -135,3 +173,50 @@ class Writer:
 
                 for content in data.get("contents"):
                     f.write(f"{content}\n")
+
+    def writer_html_img(self, datas):
+
+        body_contents = []
+
+        for data in datas:
+
+            style = """
+                <style>
+                    img {
+                        max-width: 100%;
+                        max-height: 100%;
+                        height: auto;
+                        width: auto;
+                    }
+                </style>
+                """
+            number = data.get("number")
+            keyword = data.get("keyword")
+
+            url = data.get("url")
+
+            imgs_html = []
+            for img in data.get("imgs"):
+                img_html = f'<img src="data:image/png;base64,{img}">'
+                imgs_html.append(img_html)
+
+            body_content = f'''
+            <div style="display: flex; justify-content: center; align-items: center; flex-direction: column; gap: 5px; padding: 10px 40px; margin: 25px 20%; border: 5px solid black; border-radius: 8px;">
+                <p>{number}</p>
+                <strong>{keyword}</strong>
+                <a href="{url}">{url}</a>
+                {'\n'.join(imgs_html)}
+            </div>
+            '''
+
+            body_contents.append(body_content)
+
+        with open(self.html_img_file, "w", encoding="utf-8-sig") as f:
+            f.write(
+                f"""
+            {style}
+            <div>
+                {'\n'.join(body_contents)}
+            </div>
+            """
+            )
